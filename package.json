@@ -1,6 +1,7 @@
 {
   "name": "iframe-integration-suite",
   "version": "1.0.0",
+  "type": "module",
   "description": "A comprehensive toolkit for iframe integration, extraction, and cross-frame communication",
   "main": "src/parent/frameManager.js",
   "scripts": {

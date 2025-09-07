@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .iframe-container {
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: none;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status.info {
+            background: #cce7ff;
+            color: #004085;
+        }
+        .file-list {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin: 5px 0;
+            background: white;
+        }
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .file-icon {
+            width: 24px;
+            height: 24px;
+            background: #6f42c1;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .progress-bar {
+            width: 100px;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #28a745;
+            transition: width 0.3s ease;
+        }
+        .log {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📁 File Upload Example</h1>
+        <p>This example demonstrates secure file uploads through iframes with progress tracking and validation.</p>
+        
+        <div class="controls">
+            <button onclick="loadUploadForm()">Load Upload Form</button>
+            <button onclick="clearUploads()">Clear All Files</button>
+            <button onclick="validateFiles()">Validate Files</button>
+            <button onclick="showSettings()">Upload Settings</button>
+        </div>
+
+        <div id="status" class="status info">Ready for file uploads</div>
+        
+        <div id="fileList" class="file-list" style="display: none;">
+            <h3>Uploaded Files</h3>
+            <div id="files"></div>
+        </div>
+
+        <div class="iframe-container">
+            <iframe id="uploadFrame" src="about:blank"></iframe>
+        </div>
+
+        <div class="container">
+            <h3>Upload Activity</h3>
+            <div id="log" class="log">File upload example loaded...\n</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { FrameManager } from '../parent/frameManager.js';
+        import { SecurityUtils } from '../utils/security.js';
+        import { MonitoringUtils } from '../utils/monitoring.js';
+
+        class FileUploadManager {
+            constructor() {
+                this.frameManager = new FrameManager();
+                this.uploadFrame = document.getElementById('uploadFrame');
+                this.statusDiv = document.getElementById('status');
+                this.fileListDiv = document.getElementById('fileList');
+                this.filesDiv = document.getElementById('files');
+                this.logDiv = document.getElementById('log');
+                
+                this.uploadedFiles = new Map();
+                this.uploadSettings = {
+                    maxFileSize: 10 * 1024 * 1024, // 10MB
+                    allowedTypes: ['image/*', 'application/pdf', 'text/*'],
+                    maxFiles: 5
+                };
+                
+                this.rpc = null;
+                this.setupEventHandlers();
+                this.log('FileUploadManager initialized');
+            }
+
+            setupEventHandlers() {
+                window.addEventListener('message', (event) => {
+                    try {
+                        const { type, data } = event.data;
+                        
+                        switch (type) {
+                            case 'upload-started':
+                                this.handleUploadStarted(data);
+                                break;
+                            case 'upload-progress':
+                                this.handleUploadProgress(data);
+                                break;
+                            case 'upload-complete':
+                                this.handleUploadComplete(data);
+                                break;
+                            case 'upload-error':
+                                this.handleUploadError(data);
+                                break;
+                            case 'file-validation':
+                                this.handleFileValidation(data);
+                                break;
+                        }
+                    } catch (error) {
+                        this.log(`Event handling error: ${error.message}`);
+                    }
+                });
+            }
+
+            async loadUploadForm() {
+                this.log('Loading upload form...');
+                this.setStatus('Loading upload interface...', 'info');
+
+                try {
+                    this.uploadFrame.src = './upload-form.html';
+                    
+                    await this.frameManager.waitForLoad(this.uploadFrame);
+                    this.rpc = await this.frameManager.setupRPC(this.uploadFrame, 5000);
+                    
+                    // Expose methods for the upload form
+                    this.rpc.expose('getUploadSettings', () => this.uploadSettings);
+                    this.rpc.expose('validateFile', this.validateFile.bind(this));
+                    this.rpc.expose('uploadFile', this.processFileUpload.bind(this));
+                    this.rpc.expose('deleteFile', this.deleteFile.bind(this));
+                    
+                    this.log('Upload form loaded successfully');
+                    this.setStatus('Upload form ready', 'success');
+                    
+                } catch (error) {
+                    this.setStatus(`Failed to load upload form: ${error.message}`, 'error');
+                    this.log(`Error loading upload form: ${error.message}`);
+                }
+            }
+
+            async validateFile(file) {
+                this.log(`Validating file: ${file.name}`);
+                
+                const errors = [];
+                
+                // Check file size
+                if (file.size > this.uploadSettings.maxFileSize) {
+                    errors.push(`File size (${this.formatFileSize(file.size)}) exceeds limit (${this.formatFileSize(this.uploadSettings.maxFileSize)})`);
+                }
+                
+                // Check file type
+                const isAllowedType = this.uploadSettings.allowedTypes.some(type => {
+                    if (type.endsWith('/*')) {
+                        const category = type.split('/')[0];
+                        return file.type.startsWith(category + '/');
+                    }
+                    return file.type === type;
+                });
+                
+                if (!isAllowedType) {
+                    errors.push(`File type '${file.type}' is not allowed`);
+                }
+                
+                // Check file count
+                if (this.uploadedFiles.size >= this.uploadSettings.maxFiles) {
+                    errors.push(`Maximum file limit (${this.uploadSettings.maxFiles}) reached`);
+                }
+                
+                // Check for duplicates
+                if (this.uploadedFiles.has(file.name)) {
+                    errors.push(`File '${file.name}' already uploaded`);
+                }
+
+                const isValid = errors.length === 0;
+                
+                this.log(`File validation ${isValid ? 'passed' : 'failed'}: ${file.name}`);
+                
+                return {
+                    valid: isValid,
+                    errors: errors,
+                    file: {
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        formattedSize: this.formatFileSize(file.size)
+                    }
+                };
+            }
+
+            async processFileUpload(fileData, progressCallback) {
+                const fileId = this.generateFileId();
+                
+                this.log(`Starting upload for file: ${fileData.name}`);
+                
+                const fileInfo = {
+                    id: fileId,
+                    name: fileData.name,
+                    size: fileData.size,
+                    type: fileData.type,
+                    uploadDate: new Date().toISOString(),
+                    status: 'uploading',
+                    progress: 0
+                };
+                
+                this.uploadedFiles.set(fileId, fileInfo);
+                this.updateFileDisplay();
+                
+                try {
+                    // Simulate file upload with progress
+                    for (let progress = 0; progress <= 100; progress += 10) {
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        
+                        fileInfo.progress = progress;
+                        this.updateFileProgress(fileId, progress);
+                        
+                        // Notify iframe of progress
+                        if (progressCallback) {
+                            progressCallback(progress);
+                        }
+                    }
+                    
+                    // Simulate final processing
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    fileInfo.status = 'completed';
+                    fileInfo.url = `https://example.com/uploads/${fileId}/${fileData.name}`;
+                    
+                    this.log(`Upload completed for file: ${fileData.name}`);
+                    this.updateFileDisplay();
+                    
+                    return {
+                        success: true,
+                        fileId: fileId,
+                        url: fileInfo.url,
+                        message: 'File uploaded successfully'
+                    };
+                    
+                } catch (error) {
+                    fileInfo.status = 'error';
+                    this.log(`Upload failed for file: ${fileData.name} - ${error.message}`);
+                    this.updateFileDisplay();
+                    
+                    return {
+                        success: false,
+                        error: error.message
+                    };
+                }
+            }
+
+            handleUploadStarted(data) {
+                this.log(`Upload started: ${data.fileName}`);
+                this.setStatus(`Uploading ${data.fileName}...`, 'info');
+            }
+
+            handleUploadProgress(data) {
+                const { fileId, fileName, progress } = data;
+                this.log(`Upload progress for ${fileName}: ${progress}%`);
+                this.updateFileProgress(fileId, progress);
+            }
+
+            handleUploadComplete(data) {
+                const { fileId, fileName, url } = data;
+                this.log(`Upload completed: ${fileName}`);
+                this.setStatus(`File ${fileName} uploaded successfully`, 'success');
+                
+                const fileInfo = this.uploadedFiles.get(fileId);
+                if (fileInfo) {
+                    fileInfo.status = 'completed';
+                    fileInfo.url = url;
+                    this.updateFileDisplay();
+                }
+            }
+
+            handleUploadError(data) {
+                const { fileId, fileName, error } = data;
+                this.log(`Upload error for ${fileName}: ${error}`);
+                this.setStatus(`Upload failed: ${error}`, 'error');
+                
+                const fileInfo = this.uploadedFiles.get(fileId);
+                if (fileInfo) {
+                    fileInfo.status = 'error';
+                    this.updateFileDisplay();
+                }
+            }
+
+            handleFileValidation(data) {
+                const { fileName, valid, errors } = data;
+                if (valid) {
+                    this.log(`File validation passed: ${fileName}`);
+                } else {
+                    this.log(`File validation failed: ${fileName} - ${errors.join(', ')}`);
+                }
+            }
+
+            deleteFile(fileId) {
+                this.log(`Deleting file: ${fileId}`);
+                
+                if (this.uploadedFiles.has(fileId)) {
+                    this.uploadedFiles.delete(fileId);
+                    this.updateFileDisplay();
+                    return { success: true };
+                }
+                
+                return { success: false, error: 'File not found' };
+            }
+
+            updateFileDisplay() {
+                if (this.uploadedFiles.size === 0) {
+                    this.fileListDiv.style.display = 'none';
+                    return;
+                }
+
+                this.fileListDiv.style.display = 'block';
+                
+                const filesHtml = Array.from(this.uploadedFiles.values()).map(file => {
+                    const statusIcon = this.getStatusIcon(file.status);
+                    const progressBar = file.status === 'uploading' ? 
+                        `<div class="progress-bar"><div class="progress-fill" style="width: ${file.progress}%"></div></div>` :
+                        '';
+                    
+                    return `
+                        <div class="file-item">
+                            <div class="file-info">
+                                <div class="file-icon">${this.getFileIcon(file.type)}</div>
+                                <div>
+                                    <div><strong>${file.name}</strong> ${statusIcon}</div>
+                                    <div style="font-size: 12px; color: #6c757d;">
+                                        ${this.formatFileSize(file.size)} • ${new Date(file.uploadDate).toLocaleString()}
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                ${progressBar}
+                                <button onclick="deleteUploadedFile('${file.id}')" style="background: #dc3545; font-size: 12px; padding: 4px 8px;">Delete</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                this.filesDiv.innerHTML = filesHtml;
+            }
+
+            updateFileProgress(fileId, progress) {
+                const fileInfo = this.uploadedFiles.get(fileId);
+                if (fileInfo) {
+                    fileInfo.progress = progress;
+                    this.updateFileDisplay();
+                }
+            }
+
+            getStatusIcon(status) {
+                switch (status) {
+                    case 'uploading': return '⏳';
+                    case 'completed': return '✅';
+                    case 'error': return '❌';
+                    default: return '📁';
+                }
+            }
+
+            getFileIcon(type) {
+                if (type.startsWith('image/')) return '🖼️';
+                if (type === 'application/pdf') return '📄';
+                if (type.startsWith('text/')) return '📝';
+                return '📁';
+            }
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            generateFileId() {
+                return 'file_' + Math.random().toString(36).substr(2, 16) + '_' + Date.now().toString(36);
+            }
+
+            clearUploads() {
+                this.log('Clearing all uploaded files...');
+                this.uploadedFiles.clear();
+                this.updateFileDisplay();
+                this.setStatus('All files cleared', 'info');
+            }
+
+            validateFiles() {
+                this.log('Validating all files...');
+                const fileCount = this.uploadedFiles.size;
+                const completedFiles = Array.from(this.uploadedFiles.values()).filter(f => f.status === 'completed').length;
+                
+                this.setStatus(`Files: ${fileCount} total, ${completedFiles} completed`, 'info');
+            }
+
+            showSettings() {
+                this.log('Current upload settings:');
+                this.log(`  Max file size: ${this.formatFileSize(this.uploadSettings.maxFileSize)}`);
+                this.log(`  Allowed types: ${this.uploadSettings.allowedTypes.join(', ')}`);
+                this.log(`  Max files: ${this.uploadSettings.maxFiles}`);
+            }
+
+            setStatus(message, type) {
+                this.statusDiv.textContent = message;
+                this.statusDiv.className = `status ${type}`;
+            }
+
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                this.logDiv.textContent += `[${timestamp}] ${message}\n`;
+                this.logDiv.scrollTop = this.logDiv.scrollHeight;
+            }
+        }
+
+        // Global functions and initialization
+        let uploadManager;
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            uploadManager = new FileUploadManager();
+        });
+
+        window.loadUploadForm = () => uploadManager.loadUploadForm();
+        window.clearUploads = () => uploadManager.clearUploads();
+        window.validateFiles = () => uploadManager.validateFiles();
+        window.showSettings = () => uploadManager.showSettings();
+        window.deleteUploadedFile = (fileId) => uploadManager.deleteFile(fileId);
+    </script>
+</body>
+</html>

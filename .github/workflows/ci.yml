@@ -1,0 +1,172 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Install Playwright browsers
+      run: npm run test:install
+    
+    - name: Start proxy server
+      run: |
+        npm start &
+        sleep 10
+        curl -f http://localhost:3000 || exit 1
+      env:
+        PORT: 3000
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Upload test artifacts
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: playwright-report-${{ matrix.node-version }}
+        path: |
+          playwright-report/
+          test-results/
+        retention-days: 30
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Check code style
+      run: |
+        # Basic syntax check for JavaScript files
+        find src -name "*.js" -exec node -c {} \;
+    
+    - name: Validate package.json
+      run: npm ls
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run security audit
+      run: npm audit --audit-level high
+    
+    - name: Check for vulnerable dependencies
+      run: npm audit --audit-level critical
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, lint, security]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build documentation
+      run: |
+        # Create a simple build validation
+        echo "Validating project structure..."
+        test -f src/parent/frameManager.js
+        test -f src/child/embedApi.js
+        test -f src/proxy/proxyServer.js
+        test -f src/utils/security.js
+        test -f src/utils/monitoring.js
+        echo "✅ All core modules present"
+    
+    - name: Test module imports
+      run: |
+        # Test that modules can be imported without errors
+        node -e "
+          import('./src/parent/frameManager.js').then(() => console.log('✅ FrameManager import OK'));
+          import('./src/child/embedApi.js').then(() => console.log('✅ EmbedApi import OK'));
+          import('./src/utils/security.js').then(() => console.log('✅ SecurityUtils import OK'));
+          import('./src/utils/monitoring.js').then(() => console.log('✅ MonitoringUtils import OK'));
+        " --experimental-modules
+    
+    - name: Package validation
+      run: |
+        echo "Validating package structure..."
+        npm pack --dry-run
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Create release package
+      run: |
+        echo "Creating release artifacts..."
+        mkdir -p dist
+        cp -r src dist/
+        cp package.json dist/
+        cp README.md dist/
+        cp LICENSE dist/
+        echo "✅ Release package created"
+    
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-package
+        path: dist/
+        retention-days: 90

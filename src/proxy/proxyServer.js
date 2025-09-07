@@ -3,12 +3,16 @@
  * Allows access to non-cooperative third-party pages through a proxy
  */
 
-const express = require('express');
-const { JSDOM } = require('jsdom');
-const https = require('https');
-const http = require('http');
-const url = require('url');
-const path = require('path');
+import express from 'express';
+import { JSDOM } from 'jsdom';
+import https from 'https';
+import http from 'http';
+import url from 'url';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class ProxyServer {
   constructor(port = 3000) {
@@ -240,7 +244,7 @@ class ProxyServer {
 }
 
 // If this file is run directly, start the server
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const server = new ProxyServer(process.env.PORT || 3000);
   server.start();
 
@@ -256,4 +260,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { ProxyServer };
+export { ProxyServer };
