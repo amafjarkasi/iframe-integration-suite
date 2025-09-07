@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Child Embed Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .feature h3 {
+            margin-top: 0;
+            color: #ffd700;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .output {
+            background: rgba(0, 0, 0, 0.3);
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow: auto;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .status.ready {
+            background: rgba(40, 167, 69, 0.3);
+            border: 1px solid #28a745;
+        }
+        .status.waiting {
+            background: rgba(255, 193, 7, 0.3);
+            border: 1px solid #ffc107;
+        }
+        .form-example {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .form-example input, .form-example select, .form-example textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Child Embed Page</h1>
+        
+        <div id="status" class="status waiting">
+            Initializing iframe communication...
+        </div>
+
+        <div class="feature">
+            <h3>📡 Communication Status</h3>
+            <p>This page demonstrates cooperative iframe communication using the EmbedApi.</p>
+            <div id="communication-output" class="output">Waiting for parent connection...</div>
+        </div>
+
+        <div class="feature">
+            <h3>🔧 Available Actions</h3>
+            <div class="actions">
+                <button onclick="sendPing()">Send Ping</button>
+                <button onclick="getPageInfo()">Get Page Info</button>
+                <button onclick="sendCustomEvent()">Send Event</button>
+                <button onclick="requestResize()">Request Resize</button>
+                <button onclick="updateContent()">Update Content</button>
+            </div>
+        </div>
+
+        <div class="feature">
+            <h3>📊 Sample Data</h3>
+            <p>This content can be extracted by the parent frame:</p>
+            <div class="form-example">
+                <h4>Sample Form</h4>
+                <input type="text" name="username" placeholder="Username" value="john_doe">
+                <input type="email" name="email" placeholder="Email" value="john@example.com">
+                <select name="country">
+                    <option value="us">United States</option>
+                    <option value="uk" selected>United Kingdom</option>
+                    <option value="ca">Canada</option>
+                </select>
+                <textarea name="message" placeholder="Message">This is a sample message that can be extracted.</textarea>
+            </div>
+            
+            <h4>Sample Links</h4>
+            <p>
+                <a href="https://example.com">Example Link 1</a> |
+                <a href="https://github.com">GitHub</a> |
+                <a href="#local">Local Link</a>
+            </p>
+
+            <h4>Sample Images</h4>
+            <p>
+                <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='50' height='50'><rect width='50' height='50' fill='%23007acc'/><text x='25' y='30' text-anchor='middle' fill='white'>IMG</text></svg>" alt="Sample Image 1">
+                <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='50' height='50'><circle cx='25' cy='25' r='25' fill='%2328a745'/><text x='25' y='30' text-anchor='middle' fill='white'>2</text></svg>" alt="Sample Image 2">
+            </p>
+        </div>
+
+        <div class="feature">
+            <h3>📈 Dynamic Content</h3>
+            <div id="dynamic-content">
+                <p>Current time: <span id="current-time"></span></p>
+                <p>Random number: <span id="random-number"></span></p>
+                <p>Counter: <span id="counter">0</span></p>
+                <button onclick="incrementCounter()">Increment</button>
+            </div>
+        </div>
+
+        <div id="debug-output" class="output" style="display: none;"></div>
+    </div>
+
+    <script type="module">
+        import { EmbedApi } from '../../child/embedApi.js';
+
+        let api;
+        let counter = 0;
+
+        // Initialize the embed API
+        if (window !== window.parent) {
+            api = new EmbedApi();
+            setupApi();
+        } else {
+            // Running standalone
+            document.getElementById('status').textContent = 'Running in standalone mode';
+            document.getElementById('status').className = 'status waiting';
+            document.getElementById('communication-output').textContent = 'This page is not in an iframe. The communication features won\'t work in standalone mode.';
+        }
+
+        function setupApi() {
+            const status = document.getElementById('status');
+            const output = document.getElementById('communication-output');
+
+            // Set up status
+            status.textContent = 'iframe communication ready!';
+            status.className = 'status ready';
+            output.textContent = 'Connected to parent. Ready to receive RPC calls.';
+
+            // Expose custom methods to parent
+            api.expose('getData', () => {
+                return {
+                    message: 'Hello from child iframe!',
+                    timestamp: Date.now(),
+                    counter: counter,
+                    customData: {
+                        title: 'Child Embed Example',
+                        features: ['RPC Communication', 'Data Extraction', 'Event System'],
+                        status: 'active'
+                    }
+                };
+            });
+
+            api.expose('getFormData', () => {
+                const forms = document.querySelectorAll('input, select, textarea');
+                const formData = {};
+                forms.forEach(field => {
+                    if (field.name) {
+                        formData[field.name] = field.value;
+                    }
+                });
+                return formData;
+            });
+
+            api.expose('setContent', (content) => {
+                const dynamicContent = document.getElementById('dynamic-content');
+                const newElement = document.createElement('div');
+                newElement.innerHTML = `<p><strong>Content from parent:</strong> ${content}</p>`;
+                dynamicContent.appendChild(newElement);
+                return { success: true, message: 'Content updated' };
+            });
+
+            api.expose('getCounter', () => counter);
+
+            api.expose('incrementCounter', () => {
+                counter++;
+                document.getElementById('counter').textContent = counter;
+                return counter;
+            });
+
+            // Send ready event
+            api.sendEvent('child-ready', {
+                url: window.location.href,
+                title: document.title,
+                timestamp: Date.now()
+            });
+        }
+
+        // Global functions for button handlers
+        window.sendPing = async function() {
+            if (!api) return;
+            try {
+                const result = await api.call('ping');
+                updateOutput(`Ping response: ${result}`);
+            } catch (error) {
+                updateOutput(`Ping error: ${error.message}`);
+            }
+        };
+
+        window.getPageInfo = function() {
+            if (!api) return;
+            const info = api.getPageInfo();
+            updateOutput(`Page info: ${JSON.stringify(info, null, 2)}`);
+        };
+
+        window.sendCustomEvent = function() {
+            if (!api) return;
+            api.sendEvent('custom-event', {
+                message: 'Hello from child!',
+                timestamp: Date.now(),
+                counter: counter
+            });
+            updateOutput('Custom event sent to parent');
+        };
+
+        window.requestResize = async function() {
+            if (!api) return;
+            try {
+                await api.requestResize(800, 600);
+                updateOutput('Resize request sent to parent');
+            } catch (error) {
+                updateOutput(`Resize error: ${error.message}`);
+            }
+        };
+
+        window.updateContent = function() {
+            const dynamicContent = document.getElementById('dynamic-content');
+            const now = new Date().toLocaleTimeString();
+            const random = Math.floor(Math.random() * 1000);
+            
+            document.getElementById('current-time').textContent = now;
+            document.getElementById('random-number').textContent = random;
+            
+            updateOutput('Dynamic content updated');
+        };
+
+        window.incrementCounter = function() {
+            counter++;
+            document.getElementById('counter').textContent = counter;
+            
+            if (api) {
+                api.sendEvent('counter-changed', { counter });
+            }
+        };
+
+        function updateOutput(message) {
+            const output = document.getElementById('communication-output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.textContent = `[${timestamp}] ${message}`;
+            
+            // Also show in debug output
+            const debugOutput = document.getElementById('debug-output');
+            debugOutput.style.display = 'block';
+            debugOutput.textContent += `[${timestamp}] ${message}\n`;
+            debugOutput.scrollTop = debugOutput.scrollHeight;
+        }
+
+        // Initialize dynamic content
+        window.updateContent();
+        
+        // Update time every second
+        setInterval(() => {
+            document.getElementById('current-time').textContent = new Date().toLocaleTimeString();
+            document.getElementById('random-number').textContent = Math.floor(Math.random() * 1000);
+        }, 1000);
+    </script>
+</body>
+</html>
