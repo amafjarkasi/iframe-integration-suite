@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iframe-integration-suite Parent Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .iframe-container {
+            border: 2px solid #007acc;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        iframe {
+            width: 100%;
+            height: 400px;
+            border: none;
+        }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .output {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow: auto;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        input, select {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .status.same-origin { background: #d4edda; color: #155724; }
+        .status.cross-origin { background: #fff3cd; color: #856404; }
+        .status.error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>iframe-integration-suite Parent Demo</h1>
+        <p>This demo shows different iframe integration scenarios:</p>
+        <ul>
+            <li><strong>Same-origin:</strong> Direct DOM access and extraction</li>
+            <li><strong>Cross-origin cooperative:</strong> postMessage RPC communication</li>
+            <li><strong>Cross-origin non-cooperative:</strong> Proxy-based access</li>
+        </ul>
+    </div>
+
+    <div class="container">
+        <h2>Scenario 1: Same-Origin Extraction</h2>
+        <p>Load a same-origin page and extract its content directly.</p>
+        
+        <div class="controls">
+            <input type="text" id="sameOriginUrl" placeholder="Enter same-origin URL" value="child-embed.html">
+            <button onclick="loadSameOrigin()">Load & Extract</button>
+            <button onclick="clearSameOrigin()">Clear</button>
+        </div>
+
+        <div id="sameOriginStatus" class="status" style="display: none;"></div>
+        <div class="iframe-container">
+            <iframe id="sameOriginFrame"></iframe>
+        </div>
+        <div id="sameOriginOutput" class="output" style="display: none;"></div>
+    </div>
+
+    <div class="container">
+        <h2>Scenario 2: Cross-Origin Cooperative</h2>
+        <p>Communicate with a cooperative child page using postMessage RPC.</p>
+        
+        <div class="controls">
+            <input type="text" id="crossOriginUrl" placeholder="Enter cross-origin URL" value="child-embed.html">
+            <button onclick="loadCrossOrigin()">Setup RPC</button>
+            <button onclick="testRPC()" id="testRpcBtn" disabled>Test RPC</button>
+            <button onclick="clearCrossOrigin()">Clear</button>
+        </div>
+
+        <div id="crossOriginStatus" class="status" style="display: none;"></div>
+        <div class="iframe-container">
+            <iframe id="crossOriginFrame"></iframe>
+        </div>
+        <div id="crossOriginOutput" class="output" style="display: none;"></div>
+    </div>
+
+    <div class="container">
+        <h2>Scenario 3: Proxy-Based Access</h2>
+        <p>Access non-cooperative third-party pages through the proxy server.</p>
+        
+        <div class="controls">
+            <input type="text" id="proxyUrl" placeholder="Enter target URL" value="https://example.com">
+            <button onclick="loadProxied()">Load via Proxy</button>
+            <button onclick="extractProxied()" id="extractProxyBtn" disabled>Extract Data</button>
+            <button onclick="clearProxy()">Clear</button>
+        </div>
+
+        <div id="proxyStatus" class="status" style="display: none;"></div>
+        <div class="iframe-container">
+            <iframe id="proxyFrame"></iframe>
+        </div>
+        <div id="proxyOutput" class="output" style="display: none;"></div>
+    </div>
+
+    <script type="module">
+        import { FrameManager } from '../src/parent/frameManager.js';
+
+        const manager = new FrameManager();
+        let currentRPC = null;
+
+        // Make functions global for onclick handlers
+        window.loadSameOrigin = loadSameOrigin;
+        window.clearSameOrigin = clearSameOrigin;
+        window.loadCrossOrigin = loadCrossOrigin;
+        window.testRPC = testRPC;
+        window.clearCrossOrigin = clearCrossOrigin;
+        window.loadProxied = loadProxied;
+        window.extractProxied = extractProxied;
+        window.clearProxy = clearProxy;
+
+        async function loadSameOrigin() {
+            const url = document.getElementById('sameOriginUrl').value;
+            const frame = document.getElementById('sameOriginFrame');
+            const output = document.getElementById('sameOriginOutput');
+            const status = document.getElementById('sameOriginStatus');
+
+            if (!url) return;
+
+            try {
+                status.textContent = 'Loading...';
+                status.className = 'status';
+                status.style.display = 'block';
+
+                frame.src = url;
+                await manager.waitForLoad(frame);
+
+                if (manager.isSameOrigin(frame)) {
+                    status.textContent = 'Same-origin detected - extracting data...';
+                    status.className = 'status same-origin';
+
+                    const data = manager.extractFromFrame(frame);
+                    output.textContent = JSON.stringify(data, null, 2);
+                    output.style.display = 'block';
+                } else {
+                    status.textContent = 'Cross-origin detected - cannot extract directly';
+                    status.className = 'status cross-origin';
+                    output.style.display = 'none';
+                }
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+                status.className = 'status error';
+                output.style.display = 'none';
+            }
+        }
+
+        function clearSameOrigin() {
+            document.getElementById('sameOriginFrame').src = '';
+            document.getElementById('sameOriginOutput').style.display = 'none';
+            document.getElementById('sameOriginStatus').style.display = 'none';
+        }
+
+        async function loadCrossOrigin() {
+            const url = document.getElementById('crossOriginUrl').value;
+            const frame = document.getElementById('crossOriginFrame');
+            const status = document.getElementById('crossOriginStatus');
+            const testBtn = document.getElementById('testRpcBtn');
+
+            if (!url) return;
+
+            try {
+                status.textContent = 'Loading and setting up RPC...';
+                status.className = 'status';
+                status.style.display = 'block';
+
+                frame.src = url;
+                await manager.waitForLoad(frame);
+
+                currentRPC = await manager.setupRPC(frame);
+                
+                status.textContent = 'RPC connection established';
+                status.className = 'status same-origin';
+                testBtn.disabled = false;
+
+            } catch (error) {
+                status.textContent = `RPC setup failed: ${error.message}`;
+                status.className = 'status error';
+                testBtn.disabled = true;
+            }
+        }
+
+        async function testRPC() {
+            if (!currentRPC) return;
+
+            const output = document.getElementById('crossOriginOutput');
+            const status = document.getElementById('crossOriginStatus');
+
+            try {
+                status.textContent = 'Testing RPC communication...';
+                
+                // Test ping
+                const pingResult = await currentRPC.call('ping');
+                
+                // Get page info
+                const info = await currentRPC.call('getInfo');
+                
+                // Try to get content if available
+                let content = null;
+                try {
+                    content = await currentRPC.call('getContent');
+                } catch (e) {
+                    // Method might not be exposed
+                }
+
+                const results = {
+                    ping: pingResult,
+                    info: info,
+                    content: content
+                };
+
+                output.textContent = JSON.stringify(results, null, 2);
+                output.style.display = 'block';
+                
+                status.textContent = 'RPC communication successful';
+                status.className = 'status same-origin';
+
+            } catch (error) {
+                status.textContent = `RPC error: ${error.message}`;
+                status.className = 'status error';
+                output.style.display = 'none';
+            }
+        }
+
+        function clearCrossOrigin() {
+            document.getElementById('crossOriginFrame').src = '';
+            document.getElementById('crossOriginOutput').style.display = 'none';
+            document.getElementById('crossOriginStatus').style.display = 'none';
+            document.getElementById('testRpcBtn').disabled = true;
+            currentRPC = null;
+        }
+
+        async function loadProxied() {
+            const url = document.getElementById('proxyUrl').value;
+            const frame = document.getElementById('proxyFrame');
+            const status = document.getElementById('proxyStatus');
+            const extractBtn = document.getElementById('extractProxyBtn');
+
+            if (!url) return;
+
+            try {
+                status.textContent = 'Loading via proxy server...';
+                status.className = 'status';
+                status.style.display = 'block';
+
+                const proxyUrl = `http://localhost:3000/proxy?url=${encodeURIComponent(url)}`;
+                frame.src = proxyUrl;
+                
+                await manager.waitForLoad(frame);
+
+                status.textContent = 'Content loaded via proxy - RPC injection enabled';
+                status.className = 'status same-origin';
+                extractBtn.disabled = false;
+
+            } catch (error) {
+                status.textContent = `Proxy error: ${error.message}`;
+                status.className = 'status error';
+                extractBtn.disabled = true;
+            }
+        }
+
+        async function extractProxied() {
+            const frame = document.getElementById('proxyFrame');
+            const output = document.getElementById('proxyOutput');
+            const status = document.getElementById('proxyStatus');
+
+            try {
+                status.textContent = 'Extracting data from proxied content...';
+                
+                const rpc = await manager.setupRPC(frame);
+                const content = await rpc.call('getContent');
+
+                output.textContent = JSON.stringify(content, null, 2);
+                output.style.display = 'block';
+                
+                status.textContent = 'Data extraction successful';
+                status.className = 'status same-origin';
+
+            } catch (error) {
+                status.textContent = `Extraction error: ${error.message}`;
+                status.className = 'status error';
+                output.style.display = 'none';
+            }
+        }
+
+        function clearProxy() {
+            document.getElementById('proxyFrame').src = '';
+            document.getElementById('proxyOutput').style.display = 'none';
+            document.getElementById('proxyStatus').style.display = 'none';
+            document.getElementById('extractProxyBtn').disabled = true;
+        }
+    </script>
+</body>
+</html>

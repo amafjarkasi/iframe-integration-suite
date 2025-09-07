@@ -1,0 +1,41 @@
+{
+  "name": "iframe-integration-suite",
+  "version": "1.0.0",
+  "description": "A comprehensive toolkit for iframe integration, extraction, and cross-frame communication",
+  "main": "src/parent/frameManager.js",
+  "scripts": {
+    "start": "node src/proxy/proxyServer.js",
+    "dev": "node src/proxy/proxyServer.js",
+    "test": "playwright test",
+    "test:install": "playwright install"
+  },
+  "keywords": [
+    "iframe",
+    "postmessage",
+    "cross-frame",
+    "rpc",
+    "proxy",
+    "embed",
+    "extraction"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "jsdom": "^22.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amafjarkasi/iframe-integration-suite.git"
+  },
+  "bugs": {
+    "url": "https://github.com/amafjarkasi/iframe-integration-suite/issues"
+  },
+  "homepage": "https://github.com/amafjarkasi/iframe-integration-suite#readme"
+}
